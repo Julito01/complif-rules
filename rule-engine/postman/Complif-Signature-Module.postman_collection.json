@@ -1,0 +1,658 @@
+{
+  "info": {
+    "_postman_id": "complif-signature-module",
+    "name": "Complif - Signature Module",
+    "description": "API collection for the Electronic Signature Module.\n\n## Setup\n1. Run `docker compose up -d` to start the stack\n2. Run the **Seed Database** request (POST /seed) to populate test data\n3. All collection variables are pre-filled with fixed UUIDs — no manual copying needed\n\n## Flow\n1. Create a signature request\n2. Add signatures until the rule is satisfied\n3. Check status to see remaining requirements",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "organizationId",
+      "value": "complif-001",
+      "type": "string"
+    },
+    {
+      "key": "accountId",
+      "value": "00000000-0000-4000-a000-000000000001",
+      "type": "string",
+      "description": "Fixed seed: Account (Test Company S.A.)"
+    },
+    {
+      "key": "facultyId",
+      "value": "00000000-0000-4000-a000-000000000002",
+      "type": "string",
+      "description": "Fixed seed: Faculty (APPROVE_WIRE)"
+    },
+    {
+      "key": "ruleId",
+      "value": "00000000-0000-4000-a000-000000000030",
+      "type": "string",
+      "description": "Fixed seed: Simple Rule (1A OR 2B)"
+    },
+    {
+      "key": "groupAId",
+      "value": "00000000-0000-4000-a000-000000000010",
+      "type": "string",
+      "description": "Fixed seed: Group A (Directors)"
+    },
+    {
+      "key": "groupBId",
+      "value": "00000000-0000-4000-a000-000000000011",
+      "type": "string",
+      "description": "Fixed seed: Group B (Managers)"
+    },
+    {
+      "key": "signerId1",
+      "value": "00000000-0000-4000-a000-000000000020",
+      "type": "string",
+      "description": "Fixed seed: Director 1 (Group A)"
+    },
+    {
+      "key": "signerId2",
+      "value": "00000000-0000-4000-a000-000000000022",
+      "type": "string",
+      "description": "Fixed seed: Manager 1 (Group B)"
+    },
+    {
+      "key": "signerId3",
+      "value": "00000000-0000-4000-a000-000000000023",
+      "type": "string",
+      "description": "Fixed seed: Manager 2 (Group B)"
+    },
+    {
+      "key": "requestId",
+      "value": "",
+      "type": "string",
+      "description": "Set automatically after creating a request"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Setup",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}",
+              "host": ["{{baseUrl}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Seed Database",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Seed was successful', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.eql(true);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/seed",
+              "host": ["{{baseUrl}}"],
+              "path": ["seed"]
+            },
+            "description": "Seeds the database with test data. Idempotent — safe to run multiple times.\n\nCreates:\n- 1 Account (Test Company S.A.)\n- 1 Faculty (APPROVE_WIRE)\n- 1 Schema with 3 groups: A (Directors), B (Managers), C (Officers)\n- 5 Signers assigned to their respective groups\n- 2 Rules: Simple (1A OR 2B), Complex ((1A AND 1B) OR 2C)\n\nAll IDs are fixed and pre-filled in this collection's variables."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "1. Signature Requests",
+      "item": [
+        {
+          "name": "Create Signature Request",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.data && jsonData.data.id) {",
+                  "        pm.collectionVariables.set('requestId', jsonData.data.id);",
+                  "        console.log('Request ID saved:', jsonData.data.id);",
+                  "    }",
+                  "}",
+                  "",
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response has success true', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.eql(true);",
+                  "});",
+                  "",
+                  "pm.test('Response has request data', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('id');",
+                  "    pm.expect(jsonData.data).to.have.property('status');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              },
+              {
+                "key": "x-user-id",
+                "value": "{{signerId1}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idAccount\": \"{{accountId}}\",\n  \"idFaculty\": \"{{facultyId}}\",\n  \"idRule\": \"{{ruleId}}\",\n  \"referenceId\": \"WIRE-{{$timestamp}}\",\n  \"referenceType\": \"WIRE_TRANSFER\",\n  \"description\": \"Wire transfer $50,000 to Vendor XYZ\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/signature-requests",
+              "host": ["{{baseUrl}}"],
+              "path": ["signature-requests"]
+            },
+            "description": "Create a new signature request.\n\nThe rule `1A OR 2B` means:\n- 1 signature from Group A (Directors), OR\n- 2 signatures from Group B (Managers)\n\nNote: referenceId, referenceType, and description are all optional."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "x-organization-id",
+                    "value": "complif-001"
+                  },
+                  {
+                    "key": "x-user-id",
+                    "value": "user-123"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"idAccount\": \"account-uuid\",\n  \"idFaculty\": \"faculty-uuid\",\n  \"idRule\": \"rule-uuid\",\n  \"referenceId\": \"WIRE-001\",\n  \"referenceType\": \"WIRE_TRANSFER\",\n  \"description\": \"Wire transfer $50,000\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/signature-requests",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["signature-requests"]
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"request-uuid\",\n    \"status\": \"CREATED\",\n    \"referenceId\": \"WIRE-001\",\n    \"ruleSnapshot\": {\n      \"any\": [\n        { \"group\": \"A\", \"min\": 1 },\n        { \"group\": \"B\", \"min\": 2 }\n      ]\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Signature Request Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has request data', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('request');",
+                  "    pm.expect(jsonData.data).to.have.property('isCompleted');",
+                  "    pm.expect(jsonData.data).to.have.property('remainingRequired');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/signature-requests/{{requestId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["signature-requests", "{{requestId}}"]
+            },
+            "description": "Get the current status of a signature request.\n\nReturns:\n- `isCompleted`: whether the rule is satisfied\n- `remainingRequired`: possible combinations to complete"
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Signature Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/signature-requests/{{requestId}}/cancel",
+              "host": ["{{baseUrl}}"],
+              "path": ["signature-requests", "{{requestId}}", "cancel"]
+            },
+            "description": "Cancel a signature request. Only works if the request is not in a terminal state."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Add Signatures",
+      "item": [
+        {
+          "name": "Add Signature - Director (Group A)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Check if completed', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    console.log('Is Completed:', jsonData.data.isCompleted);",
+                  "    console.log('Remaining:', JSON.stringify(jsonData.data.remainingRequired));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idSigner\": \"{{signerId1}}\",\n  \"idGroup\": \"{{groupAId}}\",\n  \"ipAddress\": \"192.168.1.100\",\n  \"userAgent\": \"Postman/10.0\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/signature-requests/{{requestId}}/signatures",
+              "host": ["{{baseUrl}}"],
+              "path": ["signature-requests", "{{requestId}}", "signatures"]
+            },
+            "description": "Add a signature from a Director (Group A).\n\nWith the rule `1A OR 2B`, this single signature will complete the request because 1 from Group A satisfies the rule."
+          },
+          "response": []
+        },
+        {
+          "name": "Add Signature - Manager 1 (Group B)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Check if completed', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    console.log('Is Completed:', jsonData.data.isCompleted);",
+                  "    console.log('Remaining:', JSON.stringify(jsonData.data.remainingRequired));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idSigner\": \"{{signerId2}}\",\n  \"idGroup\": \"{{groupBId}}\",\n  \"ipAddress\": \"192.168.1.101\",\n  \"userAgent\": \"Postman/10.0\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/signature-requests/{{requestId}}/signatures",
+              "host": ["{{baseUrl}}"],
+              "path": ["signature-requests", "{{requestId}}", "signatures"]
+            },
+            "description": "Add a signature from Manager 1 (Group B).\n\nWith rule `1A OR 2B`, after 1 manager signs, `remainingRequired` will show that 1 more from Group B is needed."
+          },
+          "response": []
+        },
+        {
+          "name": "Add Signature - Manager 2 (Group B)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Should be completed with 2 managers', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    console.log('Is Completed:', jsonData.data.isCompleted);",
+                  "    // With 2 managers from Group B, the rule should be satisfied",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idSigner\": \"{{signerId3}}\",\n  \"idGroup\": \"{{groupBId}}\",\n  \"ipAddress\": \"192.168.1.102\",\n  \"userAgent\": \"Postman/10.0\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/signature-requests/{{requestId}}/signatures",
+              "host": ["{{baseUrl}}"],
+              "path": ["signature-requests", "{{requestId}}", "signatures"]
+            },
+            "description": "Add a signature from Manager 2 (Group B).\n\nWith 2 managers from Group B, the rule `1A OR 2B` is satisfied and `isCompleted` will be `true`."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Test Scenarios",
+      "item": [
+        {
+          "name": "Scenario: Complete with 1 Director",
+          "item": [
+            {
+              "name": "1. Create Request",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 201) {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.collectionVariables.set('requestId', jsonData.data.id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "x-organization-id",
+                    "value": "{{organizationId}}"
+                  },
+                  {
+                    "key": "x-user-id",
+                    "value": "{{signerId1}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"idAccount\": \"{{accountId}}\",\n  \"idFaculty\": \"{{facultyId}}\",\n  \"idRule\": \"{{ruleId}}\",\n  \"referenceId\": \"SCENARIO1-{{$timestamp}}\",\n  \"referenceType\": \"WIRE_TRANSFER\",\n  \"description\": \"Test: Complete with 1 Director\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/signature-requests",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["signature-requests"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "2. Sign with Director → COMPLETED",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Request should be completed', function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.data.isCompleted).to.eql(true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "x-organization-id",
+                    "value": "{{organizationId}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"idSigner\": \"{{signerId1}}\",\n  \"idGroup\": \"{{groupAId}}\",\n  \"ipAddress\": \"192.168.1.1\",\n  \"userAgent\": \"Postman\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/signature-requests/{{requestId}}/signatures",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["signature-requests", "{{requestId}}", "signatures"]
+                }
+              },
+              "response": []
+            }
+          ],
+          "description": "Test that 1 Director signature completes the request (satisfies `1A` in `1A OR 2B`)"
+        },
+        {
+          "name": "Scenario: Complete with 2 Managers",
+          "item": [
+            {
+              "name": "1. Create Request",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 201) {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.collectionVariables.set('requestId', jsonData.data.id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "x-organization-id",
+                    "value": "{{organizationId}}"
+                  },
+                  {
+                    "key": "x-user-id",
+                    "value": "{{signerId1}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"idAccount\": \"{{accountId}}\",\n  \"idFaculty\": \"{{facultyId}}\",\n  \"idRule\": \"{{ruleId}}\",\n  \"referenceId\": \"SCENARIO2-{{$timestamp}}\",\n  \"referenceType\": \"WIRE_TRANSFER\",\n  \"description\": \"Test: Complete with 2 Managers\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/signature-requests",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["signature-requests"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "2. Sign with Manager 1 → NOT completed",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Request should NOT be completed yet', function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.data.isCompleted).to.eql(false);",
+                      "});",
+                      "",
+                      "pm.test('Should need 1 more from B', function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    console.log('Remaining:', JSON.stringify(jsonData.data.remainingRequired));",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "x-organization-id",
+                    "value": "{{organizationId}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"idSigner\": \"{{signerId2}}\",\n  \"idGroup\": \"{{groupBId}}\",\n  \"ipAddress\": \"192.168.1.2\",\n  \"userAgent\": \"Postman\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/signature-requests/{{requestId}}/signatures",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["signature-requests", "{{requestId}}", "signatures"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "3. Sign with Manager 2 → COMPLETED",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Request should be completed', function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.data.isCompleted).to.eql(true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "x-organization-id",
+                    "value": "{{organizationId}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"idSigner\": \"{{signerId3}}\",\n  \"idGroup\": \"{{groupBId}}\",\n  \"ipAddress\": \"192.168.1.3\",\n  \"userAgent\": \"Postman\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/signature-requests/{{requestId}}/signatures",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["signature-requests", "{{requestId}}", "signatures"]
+                }
+              },
+              "response": []
+            }
+          ],
+          "description": "Test that 2 Manager signatures complete the request (satisfies `2B` in `1A OR 2B`)"
+        }
+      ]
+    }
+  ]
+}

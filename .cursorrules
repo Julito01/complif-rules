@@ -1,0 +1,93 @@
+# Complif — AI Agent Configuration
+
+You are working on the **Complif** backend challenge: a real-time compliance rule engine with signature authorization.
+
+## Project Layout
+
+```
+rule-engine/     → NestJS 10 + TypeScript 5 + PostgreSQL 15 + Redis 7
+mcp/             → MCP server (30 tools for AI-assisted compliance workflows)
+.github/skills/  → 25 agent skills with domain-specific guidance
+```
+
+## Architecture
+
+- **Part 0 — Signature & Authorization**: Modeled as a bounded context. Combinatorics engine evaluates signer group combinations against authorization rules.
+- **Part 1 — Rule Engine & Compliance**: Separate bounded context. Evaluates transactions against versioned compliance rules with sliding time windows, aggregations, behavioral patterns, and compliance lists.
+- **Domain-Driven Design**: Pure domain services, value objects, aggregate roots (SignatureRequest, RuleVersion).
+- **Multi-tenant**: Every entity is scoped by `idOrganization` via `OrganizationGuard`.
+
+## Tech Stack
+
+- **Runtime**: Node.js 20+ / TypeScript 5
+- **Framework**: NestJS 10 (modules, guards, filters, pipes)
+- **Database**: PostgreSQL 15 via TypeORM (entities, repositories)
+- **Cache**: Redis 7 via ioredis (read-through caching for active rules + compliance lists)
+- **Testing**: Jest (unit + e2e), coverage > 80%
+- **Containers**: Docker Compose (postgres, redis, app, mcp)
+- **Logging**: Pino (structured JSON)
+- **Load testing**: k6
+
+## Development Rules
+
+### ALWAYS use Docker Compose
+
+- **NEVER** run the API directly (`npx nest start`, `npm run start`).
+- **NEVER** create standalone containers (`docker run`).
+- **NEVER** use `lsof | kill` to manage ports — use `docker compose down` then `docker compose up`.
+- The only way to run the stack: `cd rule-engine && docker compose up -d --build`
+
+### Code Conventions
+
+- Barrel exports (`index.ts`) in every module directory.
+- Domain exceptions extend `DomainException` from `shared/exceptions`.
+- All entities extend `BaseEntity` from `shared/entities`.
+- Value objects are immutable and live in `domain/value-objects/`.
+- Services are in `application/` (orchestration) or `domain/services/` (pure logic).
+- Controllers live in `infrastructure/controllers/` with DTOs in `infrastructure/dto/`.
+
+### Testing
+
+- Unit tests alongside source files (`*.spec.ts`).
+- E2E tests in `test/` directory.
+- Mock TypeORM repositories in unit tests, use real DB in e2e.
+- Run: `npx jest --no-coverage` (unit) or `npx jest --config test/jest-e2e.json` (e2e).
+
+## Agent Skills
+
+Before implementing any feature, check `.github/skills/` for relevant guidance:
+
+| Category  | Skills                                                                                                                                                                                                                                                            |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Part 0    | `signature-domain`, `signature-schema-modeler`, `signature-combinatorics`, `signature-request-lifecycle`, `ddd-part-0`                                                                                                                                            |
+| Part 1    | `rule-evaluation-flow`, `rule-templates-and-versioning`, `aggregations-and-windows`, `behavioral-rules`, `compliance-lists`, `condition-operators-extension`, `alert-deduplication`, `template-inheritance`, `json-interpretation`, `transaction-model-alignment` |
+| NFR/Infra | `performance-metrics`, `redis-cache`, `test-coverage`, `structured-logging`, `docker-local-development`, `technical-requirements`                                                                                                                                 |
+| General   | `senior-backend`, `ddd-part-1`, `challenge-deliverables-minimum`                                                                                                                                                                                                  |
+
+## MCP Server
+
+The MCP server (`mcp/`) exposes 30 tools for database inspection, rule management, transaction ingestion, alert handling, and pure-computation explainers. It connects to the same PostgreSQL and API as the main app.
+
+## Key Endpoints
+
+### Part 0
+
+- `POST /signature-rules` — Create signature rule with schema
+- `POST /signature-requests` — Create signature request
+- `POST /signature-requests/:id/signatures` — Add signature
+- `GET /signature-rules/:id/combinations` — Get valid combinations
+
+### Part 1
+
+- `POST /rule-templates` — Create rule template
+- `POST /rule-templates/:id/versions` — Publish immutable version
+- `POST /transactions` — Ingest & evaluate transaction
+- `GET /alerts` — List compliance alerts
+- `PUT /alerts/:id` — Update alert status
+
+## Performance
+
+- Evaluation latency: avg 12ms, p95 34ms, p99 < 100ms
+- Throughput: 85.7 txn/sec (target: 50)
+- Redis caching: active rules (60s TTL), compliance list facts (30s TTL)
+- Connection pool: 50 max connections

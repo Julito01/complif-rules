@@ -1,0 +1,402 @@
+{
+  "info": {
+    "_postman_id": "complif-compliance-module",
+    "name": "Complif - Compliance Module (Part 1)",
+    "description": "API collection for the Rule Engine & Compliance Module.\n\n## Setup\n1. Run `docker compose up -d` to start the stack\n2. Run the **Seed Database** request to populate test data\n3. All collection variables use deterministic seed UUIDs\n\n## Flow\n1. Seed → create rule templates + versions\n2. Ingest a low-amount → expect ALLOW\n3. Ingest a high-amount CASH_OUT → expect REVIEW + alert\n4. Ingest multiple txs → trigger velocity rule\n5. List alerts and update status",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "organizationId",
+      "value": "complif-001",
+      "type": "string"
+    },
+    {
+      "key": "accountId",
+      "value": "00000000-0000-4000-a000-000000000001",
+      "type": "string",
+      "description": "Fixed seed: Account"
+    },
+    {
+      "key": "ruleTemplateId1",
+      "value": "00000000-0000-4000-b000-000000000001",
+      "type": "string",
+      "description": "Fixed seed: HIGH_AMOUNT template"
+    },
+    {
+      "key": "ruleTemplateId2",
+      "value": "00000000-0000-4000-b000-000000000002",
+      "type": "string",
+      "description": "Fixed seed: VELOCITY_CHECK template"
+    },
+    {
+      "key": "ruleVersionId1",
+      "value": "00000000-0000-4000-b000-000000000010",
+      "type": "string",
+      "description": "Fixed seed: HIGH_AMOUNT version"
+    },
+    {
+      "key": "ruleVersionId2",
+      "value": "00000000-0000-4000-b000-000000000011",
+      "type": "string",
+      "description": "Fixed seed: VELOCITY_CHECK version"
+    },
+    {
+      "key": "alertId",
+      "value": "",
+      "type": "string",
+      "description": "Set from alert response"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Setup",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "Seed Database",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "x-organization-id", "value": "{{organizationId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/seed",
+              "host": ["{{baseUrl}}"],
+              "path": ["seed"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Rule Templates",
+      "item": [
+        {
+          "name": "List All Templates",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-organization-id", "value": "{{organizationId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/rule-templates",
+              "host": ["{{baseUrl}}"],
+              "path": ["rule-templates"]
+            }
+          }
+        },
+        {
+          "name": "Get Template by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-organization-id", "value": "{{organizationId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/rule-templates/{{ruleTemplateId1}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["rule-templates", "{{ruleTemplateId1}}"]
+            }
+          }
+        },
+        {
+          "name": "Create New Template",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"COUNTRY_RISK\",\n  \"name\": \"High-Risk Country Detection\",\n  \"description\": \"Flags transactions from high-risk countries\",\n  \"category\": \"AML\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/rule-templates",
+              "host": ["{{baseUrl}}"],
+              "path": ["rule-templates"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Rule Versions",
+      "item": [
+        {
+          "name": "List Active Versions",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-organization-id", "value": "{{organizationId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/rule-versions/active",
+              "host": ["{{baseUrl}}"],
+              "path": ["rule-versions", "active"]
+            }
+          }
+        },
+        {
+          "name": "Get Version by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-organization-id", "value": "{{organizationId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/rule-versions/{{ruleVersionId1}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["rule-versions", "{{ruleVersionId1}}"]
+            }
+          }
+        },
+        {
+          "name": "List Versions for Template",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-organization-id", "value": "{{organizationId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/rule-templates/{{ruleTemplateId1}}/versions",
+              "host": ["{{baseUrl}}"],
+              "path": ["rule-templates", "{{ruleTemplateId1}}", "versions"]
+            }
+          }
+        },
+        {
+          "name": "Create Version (Country Risk Rule)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"conditions\": {\n    \"all\": [\n      {\n        \"fact\": \"transaction.amount\",\n        \"operator\": \"greaterThan\",\n        \"value\": 5000\n      },\n      {\n        \"not\": {\n          \"fact\": \"transaction.country\",\n          \"operator\": \"in\",\n          \"value\": [\"AR\", \"UY\", \"CL\"]\n        }\n      }\n    ]\n  },\n  \"actions\": [\n    {\n      \"type\": \"create_alert\",\n      \"severity\": \"HIGH\",\n      \"category\": \"AML\",\n      \"message\": \"High-value transaction from non-LATAM country\"\n    }\n  ],\n  \"priority\": 5\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/rule-templates/{{ruleTemplateId1}}/versions",
+              "host": ["{{baseUrl}}"],
+              "path": ["rule-templates", "{{ruleTemplateId1}}", "versions"]
+            }
+          }
+        },
+        {
+          "name": "Deactivate Version",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/rule-versions/{{ruleVersionId1}}/deactivate",
+              "host": ["{{baseUrl}}"],
+              "path": ["rule-versions", "{{ruleVersionId1}}", "deactivate"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Transaction Ingestion",
+      "item": [
+        {
+          "name": "Ingest Small Transaction (ALLOW)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idAccount\": \"{{accountId}}\",\n  \"type\": \"CASH_IN\",\n  \"amount\": 500,\n  \"currency\": \"USD\",\n  \"datetime\": \"2026-02-13T10:00:00Z\",\n  \"country\": \"AR\",\n  \"origin\": \"API\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions"]
+            }
+          }
+        },
+        {
+          "name": "Ingest High Amount CASH_OUT (REVIEW)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const resp = pm.response.json();",
+                  "if (resp.data && resp.data.alerts && resp.data.alerts.length > 0) {",
+                  "  pm.collectionVariables.set('alertId', resp.data.alerts[0].id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idAccount\": \"{{accountId}}\",\n  \"type\": \"CASH_OUT\",\n  \"amount\": 15000,\n  \"currency\": \"USD\",\n  \"datetime\": \"2026-02-13T11:00:00Z\",\n  \"country\": \"BR\",\n  \"channel\": \"WEB\",\n  \"origin\": \"API\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions"]
+            }
+          }
+        },
+        {
+          "name": "Ingest Transaction with Full Fields",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idAccount\": \"{{accountId}}\",\n  \"type\": \"CREDIT\",\n  \"subType\": \"WIRE_TRANSFER\",\n  \"amount\": 2500,\n  \"currency\": \"ARS\",\n  \"amountNormalized\": 2.5,\n  \"currencyNormalized\": \"USD\",\n  \"datetime\": \"2026-02-13T12:00:00Z\",\n  \"date\": \"2026-02-13\",\n  \"country\": \"AR\",\n  \"counterpartyId\": \"counterparty-001\",\n  \"channel\": \"MOBILE\",\n  \"quantity\": null,\n  \"asset\": null,\n  \"price\": null,\n  \"isVoided\": false,\n  \"isBlocked\": false,\n  \"externalCode\": \"TXN-0042\",\n  \"data\": { \"reference\": \"INV-2026-001\" },\n  \"origin\": \"BATCH\",\n  \"deviceInfo\": { \"ip\": \"192.168.1.1\", \"userAgent\": \"PostmanRuntime\" },\n  \"metadata\": { \"source\": \"postman-test\" }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions"]
+            }
+          }
+        },
+        {
+          "name": "List Transactions",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-organization-id", "value": "{{organizationId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/transactions?limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions"],
+              "query": [{ "key": "limit", "value": "10" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Evaluation Results",
+      "item": [
+        {
+          "name": "List Evaluation Results",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-organization-id", "value": "{{organizationId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/transactions/evaluations?limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "evaluations"],
+              "query": [{ "key": "limit", "value": "10" }]
+            }
+          }
+        },
+        {
+          "name": "List Evaluations by Decision",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-organization-id", "value": "{{organizationId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/transactions/evaluations?decision=REVIEW",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "evaluations"],
+              "query": [{ "key": "decision", "value": "REVIEW" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Alerts",
+      "item": [
+        {
+          "name": "List All Alerts",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-organization-id", "value": "{{organizationId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/alerts",
+              "host": ["{{baseUrl}}"],
+              "path": ["alerts"]
+            }
+          }
+        },
+        {
+          "name": "List Alerts by Severity",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-organization-id", "value": "{{organizationId}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/alerts?severity=HIGH",
+              "host": ["{{baseUrl}}"],
+              "path": ["alerts"],
+              "query": [{ "key": "severity", "value": "HIGH" }]
+            }
+          }
+        },
+        {
+          "name": "Update Alert → ACKNOWLEDGED",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACKNOWLEDGED\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/alerts/{{alertId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["alerts", "{{alertId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Alert → RESOLVED",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"RESOLVED\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/alerts/{{alertId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["alerts", "{{alertId}}"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

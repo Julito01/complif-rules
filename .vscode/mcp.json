@@ -1,0 +1,14 @@
+{
+  "servers": {
+    "complif-mcp": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["tsx", "${workspaceFolder}/mcp/src/index.ts"],
+      "env": {
+        "API_BASE_URL": "http://localhost:3000",
+        "DEFAULT_ORG_ID": "complif-001",
+        "DATABASE_URI": "postgresql://complif:complif@localhost:5432/complif"
+      }
+    }
+  }
+}
