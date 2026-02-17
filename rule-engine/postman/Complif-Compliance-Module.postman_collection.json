@@ -128,6 +128,44 @@
               "path": ["rule-templates"]
             }
           }
+        },
+        {
+          "name": "Create Baseline Template (isSystem=true)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"BASELINE_AML_MANUAL\",\n  \"name\": \"Manual Baseline AML\",\n  \"description\": \"Baseline template for org-level inheritance\",\n  \"category\": \"AML\",\n  \"isSystem\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/rule-templates",
+              "host": ["{{baseUrl}}"],
+              "path": ["rule-templates"]
+            }
+          }
+        },
+        {
+          "name": "Create Non-System Without Baseline (expect 422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "org-no-baseline" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"NO_BASELINE_CHILD\",\n  \"name\": \"Should Fail - Missing Baseline\",\n  \"category\": \"AML\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/rule-templates",
+              "host": ["{{baseUrl}}"],
+              "path": ["rule-templates"]
+            }
+          }
         }
       ]
     },
@@ -205,6 +243,44 @@
               "raw": "{{baseUrl}}/rule-versions/{{ruleVersionId1}}/deactivate",
               "host": ["{{baseUrl}}"],
               "path": ["rule-versions", "{{ruleVersionId1}}", "deactivate"]
+            }
+          }
+        },
+        {
+          "name": "Create Version with Malformed Conditions (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"conditions\": {\n    \"all\": [\n      {\n        \"fact\": \"transaction.amount\",\n        \"operator\": \"greaterThan\",\n        \"value\": 1000\n      },\n      {\n        \"any\": []\n      }\n    ]\n  },\n  \"actions\": [\n    {\n      \"type\": \"create_alert\",\n      \"severity\": \"HIGH\",\n      \"category\": \"AML\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/rule-templates/{{ruleTemplateId1}}/versions",
+              "host": ["{{baseUrl}}"],
+              "path": ["rule-templates", "{{ruleTemplateId1}}", "versions"]
+            }
+          }
+        },
+        {
+          "name": "Deactivate Last Baseline (expect 422)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/rule-templates/{{ruleTemplateId1}}/deactivate",
+              "host": ["{{baseUrl}}"],
+              "path": ["rule-templates", "{{ruleTemplateId1}}", "deactivate"]
             }
           }
         }
